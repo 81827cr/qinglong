@@ -7,11 +7,6 @@ import requests
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
 TELEGRAM_BOT_TOKEN = os.environ.get('TG_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TG_USER_ID', '')
-# Cloudflare Worker 域名，形如 "abc123.workers.dev"
-WORKER_DOMAIN = os.environ.get('DOMAIN', '').strip()
-# 与 Worker 端约定的“校验密钥”，防止未授权调用
-WORKER_KEY    = os.environ.get('WORKER_KEY', '').strip()
-
 
 HEADERS = {
     'Connection': 'keep-alive',
@@ -142,28 +137,22 @@ def get_user_info():
     except Exception as e:
         add_message(f"用户信息请求异常: {e}")
 
-def send_via_worker(message: str):
-    """通过 POST 把消息和密钥发给 Cloudflare Worker"""
-    if not WORKER_DOMAIN or not WORKER_KEY or not TELEGRAM_CHAT_ID:
-        print("❌ 缺少 DOMAIN、WORKER_KEY 或 CHAT_ID")
+def send_telegram_once(message):
+    """推送单条消息到Telegram"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("未提供Telegram机器人TOKEN或CHAT_ID，无法发送通知")
         return
 
-    url = f"https://{WORKER_DOMAIN}/"   # 只用根路径
-    payload = {
-        "key": WORKER_KEY,
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
-    }
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': message}
     try:
-        r = requests.post(url, json=payload, timeout=5)
-        if r.status_code == 200:
-            print("✅ 已通过 Worker 转发消息")
+        resp = requests.post(url, json=payload, timeout=10)
+        if resp.status_code == 200:
+            print("Telegram消息发送成功")
         else:
-            print("❌ Worker 返回非 200:", r.status_code, r.text)
+            print("Telegram消息发送失败, 状态码:", resp.status_code)
     except Exception as e:
-        print("❌ 调用 Worker 异常:", e)
-
-        
+        print("发送Telegram消息时出现异常:", e)
 
 def main():
     """脚本主流程"""
@@ -177,7 +166,7 @@ def main():
     # 输出并推送汇总信息
     if final_messages:
         summary_msg = "\n".join(final_messages)
-        send_via_worker(summary_msg)
+        send_telegram_once(summary_msg)
 
 if __name__ == "__main__":
     main()
