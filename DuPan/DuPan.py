@@ -5,7 +5,6 @@ import requests
 
 # 从环境变量中获取相关参数
 BAIDU_COOKIE = os.environ.get('BAIDU_COOKIE', '')
-TELEGRAM_BOT_TOKEN = os.environ.get('TG_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TG_USER_ID', '')
 # Cloudflare Worker 域名，形如 "abc123.workers.dev"
 WORKER_DOMAIN = os.environ.get('DOMAIN', '').strip()
@@ -176,7 +175,7 @@ def main():
 
     # 输出并推送汇总信息
     if final_messages:
-        summary_msg = "\n".join(final_messages)
+        summary_msg = "[度盘签到]\n" + "\n".join(final_messages)
         send_via_worker(summary_msg)
 
 if __name__ == "__main__":
