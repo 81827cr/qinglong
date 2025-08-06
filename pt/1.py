@@ -1,8 +1,8 @@
 import os
 import re
-import requests
 import time
 import random
+import cloudscraper  # <- 用它替代 requests
 
 # 环境变量
 SCHOOL_COOKIE    = os.environ.get('SCHOOL', '').strip()
@@ -10,19 +10,19 @@ TELEGRAM_CHAT_ID = os.environ.get('TG_USER_ID', '').strip()
 WORKER_DOMAIN    = os.environ.get('DOMAIN', '').strip()
 WORKER_KEY       = os.environ.get('WORKER_KEY', '').strip()
 
-# 请求头：注入 Cookie
+# 浏览器标头（注入登录态 Cookie）
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/131.0.6778.205 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept-Encoding": "gzip, deflate",       # requests 默认支持 gzip/deflate
-    "Connection": "keep-alive",
-    "Referer": "https://pt.btschool.club/index.php",  # 来源页面
-    "Cookie": SCHOOL_COOKIE                    # 注入登录态
+    "Accept-Encoding": "gzip, deflate",  # requests 默认
+    "Connection":      "keep-alive",
+    "Referer":         "https://pt.btschool.club/index.php",
+    "Cookie":          SCHOOL_COOKIE
 }
 
 final_messages = []
@@ -31,39 +31,41 @@ def add_message(msg: str):
     print(msg)
     final_messages.append(msg)
 
+# 创建 cloudscraper 会话
+scraper = cloudscraper.create_scraper()
+
 def signin_school():
-    """在 school 上执行签到"""
+    """在 pt.btschool.club 执行签到，通过 Cloudflare JS 验证"""
     if not SCHOOL_COOKIE:
         add_message("❌ 未检测到 SCHOOL 环境变量（Cookie），请检查。")
         return
 
-    # 1) 随机延迟，模拟真实“先想一想再点”的人类行为
-    delay1 = random.uniform(5, 60)   # 5～60 秒之间随机
-    time.sleep(delay1)
-    
-    # 2) 先 GET 首页，执行一次页面加载
+    # 随机延迟：模拟真实用户行为
+    time.sleep(random.uniform(5, 60))
+
+    # 1) 先 GET 首页，通过 JS Challenge 拿到验证 Cookie
     try:
-        resp_index = requests.get("https://pt.btschool.club/index.php", headers=HEADERS, timeout=10)
+        resp_index = scraper.get("https://pt.btschool.club/index.php",
+                                 headers=HEADERS, timeout=10)
         if resp_index.status_code != 200:
             add_message(f"⚠️ 首页请求异常，状态码：{resp_index.status_code}")
-            # 虽然首页异常也可以选择中断，但这里我们继续尝试签到
     except Exception as e:
         add_message(f"⚠️ 首页请求出错：{e}")
 
-    # 3) 再随机短暂停顿，模拟点击前的停留
+    # 短暂停顿
     time.sleep(random.uniform(1, 5))
 
-    # 4) 签到
-    url = "https://pt.btschool.club/index.php?action=addbonus"
+    # 2) 真正的签到请求
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=10)
+        url = "https://pt.btschool.club/index.php?action=addbonus"
+        resp = scraper.get(url, headers=HEADERS, timeout=10)
         if resp.status_code == 200:
-            # 根据页面实际提示调整正则
-            m = re.search(r'<div[^>]*class=["\']text-success[^>]*>(.*?)</div>', resp.text, re.S)
+            m = re.search(r'<div[^>]*class=["\']text-success[^>]*>(.*?)</div>',
+                          resp.text, re.S)
             if m:
                 add_message(f"✅ 签到成功：{m.group(1).strip()}")
             else:
-                add_message("✅ 签到完成，未匹配到页面提示。")
+                add_message("✅ 签到完成，但未匹配到提示信息。")
         else:
             add_message(f"❌ 签到失败，HTTP 状态码：{resp.status_code}")
     except Exception as e:
@@ -75,14 +77,12 @@ def send_via_worker(message: str):
         print("⚠️ 缺少 DOMAIN、WORKER_KEY 或 TG_USER_ID，跳过推送。")
         return
 
-    url = f"https://{WORKER_DOMAIN}/"
-    payload = {
-        "key": WORKER_KEY,
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
-    }
     try:
-        r = requests.post(url, json=payload, timeout=5)
+        r = scraper.post(f"https://{WORKER_DOMAIN}/",
+                         json={"key": WORKER_KEY,
+                               "chat_id": TELEGRAM_CHAT_ID,
+                               "text": message},
+                         timeout=5)
         if r.status_code == 200:
             print("✅ 已通过 Worker 转发消息")
         else:
@@ -92,7 +92,6 @@ def send_via_worker(message: str):
 
 def main():
     signin_school()
-    # 如需延时可加 time.sleep()
     if final_messages:
         summary = "[school 签到结果]\n" + "\n".join(final_messages)
         send_via_worker(summary)
@@ -100,6 +99,6 @@ def main():
 if __name__ == "__main__":
     main()
 
-# 兼容 Serverless handler
+# 兼容 Serverless
 def handler(event, context):
     main()
