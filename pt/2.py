@@ -32,7 +32,7 @@ def add_message(msg: str):
     final_messages.append(msg)
 
 def signin_rousi():
-    """在 rousi.zip 上执行签到"""
+    """在 rousi 上执行签到"""
     if not ROUSI_COOKIE:
         add_message("❌ 未检测到 ROUSI 环境变量（Cookie），请检查。")
         return
