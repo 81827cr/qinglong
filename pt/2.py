@@ -5,7 +5,7 @@ import time
 import random
 
 # 环境变量
-ROUSI_COOKIE    = os.environ.get('ROUSI', '').strip()
+ROUSI_COOKIE    = os.environ.get('PT_ROUSI', '').strip()
 TELEGRAM_CHAT_ID = os.environ.get('TG_USER_ID', '').strip()
 WORKER_DOMAIN    = os.environ.get('DOMAIN', '').strip()
 WORKER_KEY       = os.environ.get('WORKER_KEY', '').strip()
