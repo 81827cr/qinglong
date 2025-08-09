@@ -94,7 +94,7 @@ def main():
     signin_rousi()
     # 如需延时可加 time.sleep()
     if final_messages:
-        summary = "[rousi 签到结果]\n" + "\n".join(final_messages)
+        summary = "[rousi 签到结果]\n" + "\n".join(final_messages) +  + "\n\nhttps://rousi.zip/index.php"
         send_via_worker(summary)
 
 if __name__ == "__main__":
